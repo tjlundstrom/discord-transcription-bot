@@ -9,7 +9,7 @@
  */
 
 // Imported modules.
-const Discord = require("discord.js");
+const Discord = require('discord.js');
 const fs = require('fs');
 const path = require('path');
 const WatsonSTT = require('watson-developer-cloud');
@@ -47,7 +47,10 @@ const member_id_ao = config.member_id_ao;
 
 //----
 // These constants are the member.username's of some of the members of the specified Discord
-// server.  Not all members are listed, yet.
+// server.  Not all members are listed, yet.  In order to gain access to the members
+// usernames, i.e. member.username, the "identify" scope will need to be chosen, along with
+// the "bot" scope.  To get a valid OAuth2 link, a redirect uri will need to be entered,
+// since the "identify" scope requires it.
 const member_username_aa = config.member_username_aa;
 const member_username_ab = config.member_username_ab;
 const member_username_ac = config.member_username_ac;
@@ -66,13 +69,15 @@ const member_username_ao = config.member_username_ao;
 //----
 
 const client = new Discord.Client();
-var queue = [];
 var voiceChannel = null;
 var textChannel = null;
 var listenConnection = null;
 var listening = false;
 var newReceiver = true; // Helps determine whether to create or recreate receiver.
 var recordingsPath = "";
+var streamQueue = []; // Holds the queued instances of a member talking.
+var indexCounter = 0; // Helps keep track of the elements in the array.
+var currentIndex = 0;
 //var listenStreams = new Map();    // may be useful for multiple users??  
                                     // listenStreams.get(member.id)...  
                                     // listenStreams.set(member.id, <something>)...
@@ -108,7 +113,7 @@ function handleMessage(message) {
     return;
 
   // Only an authorized user, or users if added, can command the bot.
-  if (message.member.id != member_id_aa) {
+  if (message.member.id != member_id_aa && message.member.id != member_id_ae) {
     message.reply(" the command has to come from the operator of the bot.  Thank you.");
     return;
   }
@@ -194,7 +199,7 @@ function commandListen(message) {
         streamToWatson(connection, member);
       })
       .on('error', (err) => {
-        console.log("An error has occurred between lines 197 and 203..." + err);
+        console.log("An error has occurred between lines 196 and 202..." + err);
       });
   });
 } // End of the function commandListen(any):void.
@@ -207,7 +212,6 @@ function commandListen(message) {
  */
 function commandLeave() {
   listening = false;
-  queue = [];
 
   if(listenConnection) {
     // Bot farewell...  Warcraft II peasant "Work Done".
@@ -223,11 +227,14 @@ function commandLeave() {
 
           listenConnection.disconnect();
           listenConnection = null;
+
+          // Resets this array to empty.
+          streamQueue = [];
         });
       }
     })
     .on('error', (err) => {
-      console.log("An error has occurred between lines 220 and 236..." + err);
+      console.log("An error has occurred between lines 220 and 237..." + err);
     });
   }
 } // End of the function commandLeave():void.
@@ -252,6 +259,7 @@ function makeDir(dir) {
  * the 'identity' scope enabled, which requires a redirect uri in the Oauth2
  * authentication.  If this function is used, the member.id's have to be manually
  * coded into the switch statement.
+ *    *** This function is only needed if the "identify" scope is not used. ***
  *
  * @param memeber  The current user whose name is sought.
  * @returns String - The current user's name.
@@ -343,7 +351,8 @@ function userNameFinder (member) {
  */
 function streamToWatson(usedConnection, member) {
   let receiver = usedConnection.createReceiver();
-
+  let foundElement = false; // Makes sure the array has an element.
+  
   // This code only runs when the member is speaking.
   usedConnection.on('speaking', (member, speaking) => {
     if (speaking) {
@@ -362,49 +371,84 @@ function streamToWatson(usedConnection, member) {
       // The path and name of the text file created.
       let capturedDataTextFilePath = 
         path.join(recordingsPath, `${member.id}-${Date.now()}-Discord.txt`);
-
-      // Voice channel stream.
-      let inputStream = receiver.createPCMStream(member);
-      // Watson voice recognition interpretter stream.
-      let sTTRecStream = speechToText.createRecognizeStream({content_type: content_type});
+      
       // Text file.
       let capturedDataTextFile = fs.createWriteStream(capturedDataTextFilePath);
 
-      // Empty voice channel stream data into the Watson interpretter and then into
-      // the text file.
-      inputStream.pipe(sTTRecStream).pipe(capturedDataTextFile);
-      
-      // Once the Watson interpreter is empty, this closes the streams and handles
-      // the text file.
-      sTTRecStream.on('end', () => {
-        newReceiver = false;
+      let functionAtIndex = null; // Holds the element of the array at a specified index.
 
-        sTTRecStream.end();
-        capturedDataTextFile.close();
-        receiver.destroy();
-      
-        // Send the text file data to the Discord text channel, if the data exists.
-        fs.readFile(capturedDataTextFilePath, function(err, data) {
-          if (err) {
-            console.log("An error occurred at line 395...  " + err);
-            return;
-          }
+      // Queues up the individual initiations of conversation.
+      streamQueue.push ((thisIndex) => {
+        // Voice channel stream.
+        let inputStream = receiver.createPCMStream(member);
+        // Watson voice recognition interpretter stream.
+        let sTTRecStream = speechToText.createRecognizeStream({content_type: content_type});
 
-          else {
-            if (!data || data == "")
-              return;
+        // Empty voice channel stream data into the Watson interpretter and then into
+        // the text file.
+        inputStream.pipe(sTTRecStream).pipe(capturedDataTextFile);
+        
+        // Once the Watson interpreter is empty, this closes the streams and handles
+        // the text file.
+        sTTRecStream.on('end', () => {
+          newReceiver = false;
+
+          sTTRecStream.end();
+          capturedDataTextFile.close();
+          receiver.destroy();
+          
+          // Send the text file data to the Discord text channel, if the data exists.
+          fs.readFile(capturedDataTextFilePath, function(err, data) {
+            if (err) {
+              console.log("An error occurred at line 403...  " + err);
+              return err;
+            }
 
             else {
-              let userName = userNameFinder(member);
-              console.log("           " + userName + " said: " + data);
-              textChannel.send(userName + " said: " + data);
+              if (!data || data == "")
+                return thisIndex;
+
+              else {
+                let userName = userNameFinder(member);
+                console.log("           " + userName + " said: " + data);
+                textChannel.send(userName + " said: " + data);
+                return thisIndex;
+              }
             }
-          }
+          });
+        })
+        .on('error', (err) => {
+          console.log("An error occurred within lines 393 and 421...  " + err);
+          return thisIndex;
         });
-      })
-      .on('error', (err) => {
-        console.log("An error occurred within lines 385 and 412...  " + err)
       });
+      
+      // If the queue array is not empty.
+      if (streamQueue.length > 0) {
+        // The index of the array cannot be below 0.
+        if (indexCounter >= 0) {
+          currentIndex = indexCounter;
+          indexCounter++;
+          
+          // Grabs the function returned from the array at the specified index.
+          functionAtIndex = streamQueue.find((element, currentIndex) => {
+            if (element)
+              foundElement = true; // The element exists.
+              
+            return element;
+          });
+          
+          if (foundElement) {
+            // Grabs the index that this element of the queue is located.
+            let indexToRemove = functionAtIndex(currentIndex);
+            
+            indexCounter = indexCounter - 1;
+            foundElement = false;
+            streamQueue.splice(indexToRemove, 1);
+          }
+        }
+
+      }
     }
   });
 } // End of the function streamToWatson(any, any):void.
