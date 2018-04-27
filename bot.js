@@ -26,49 +26,15 @@ const prefix = config.prefix; // The special character at the beginning of a wor
 
 //----
 // These constants are the member.id's of some of the members of the specified Discord server.
-// Not all members are listed, yet.  Not all of the member.id numbers are known yet.  Once
-// obtained, record the member.id's in the settings.json file.
+// Not all members are listed.  These member id's are used to determine if a command is given
+// by an authorized operator of this Bot.
 const member_id_aa = config.member_id_aa;
 const member_id_ab = config.member_id_ab;
 const member_id_ac = config.member_id_ac;
 const member_id_ad = config.member_id_ad;
-const member_id_ae = config.member_id_ae;
-const member_id_af = config.member_id_af;
-const member_id_ag = config.member_id_ag;
-const member_id_ah = config.member_id_ah;
-const member_id_ai = config.member_id_ai;
-const member_id_aj = config.member_id_aj;
-const member_id_ak = config.member_id_ak;
-const member_id_al = config.member_id_al;
-const member_id_am = config.member_id_am;
-const member_id_an = config.member_id_an;
-const member_id_ao = config.member_id_ao;
-//----
-
-//----
-// These constants are the member.username's of some of the members of the specified Discord
-// server.  Not all members are listed, yet.  In order to gain access to the members
-// usernames, i.e. member.username, the "identify" scope will need to be chosen, along with
-// the "bot" scope.  To get a valid OAuth2 link, a redirect uri will need to be entered,
-// since the "identify" scope requires it.
-const member_username_aa = config.member_username_aa;
-const member_username_ab = config.member_username_ab;
-const member_username_ac = config.member_username_ac;
-const member_username_ad = config.member_username_ad;
-const member_username_ae = config.member_username_ae;
-const member_username_af = config.member_username_af;
-const member_username_ag = config.member_username_ag;
-const member_username_ah = config.member_username_ah;
-const member_username_ai = config.member_username_ai;
-const member_username_aj = config.member_username_aj;
-const member_username_ak = config.member_username_ak;
-const member_username_al = config.member_username_al;
-const member_username_am = config.member_username_am;
-const member_username_an = config.member_username_an;
-const member_username_ao = config.member_username_ao;
-//----
 
 const client = new Discord.Client();
+
 var voiceChannel = null;
 var textChannel = null;
 var listenConnection = null;
@@ -112,8 +78,14 @@ function handleMessage(message) {
   if (!message.content.startsWith(prefix))
     return;
 
-  // Only an authorized user, or users if added, can command the bot.
-  if (message.member.id != member_id_aa && message.member.id != member_id_ae) {
+  // Only an authorized user, or users if added, can command the bot.  Must
+  // use member.id's here, since usernames in Discord can be changed.  If it is
+  // wanted to have anyone command the bot, delete this if() statement.
+  if (message.member.id != member_id_aa 
+      //&& message.member.id != member_id_ab 
+      //&& message.member.id != member_id_ac
+      //&& message.member.id != member_id_ad
+     ) {
     message.reply(" the command has to come from the operator of the bot.  Thank you.");
     return;
   }
@@ -199,7 +171,7 @@ function commandListen(message) {
         streamToWatson(connection, member);
       })
       .on('error', (err) => {
-        console.log("An error has occurred between lines 196 and 202..." + err);
+        console.log("An error has occurred between lines 168 and 174..." + err);
       });
   });
 } // End of the function commandListen(any):void.
@@ -234,7 +206,7 @@ function commandLeave() {
       }
     })
     .on('error', (err) => {
-      console.log("An error has occurred between lines 220 and 237..." + err);
+      console.log("An error has occurred between lines 190 and 209..." + err);
     });
   }
 } // End of the function commandLeave():void.
@@ -251,92 +223,6 @@ function makeDir(dir) {
     fs.mkdirSync(dir);
   } catch (err) {}
 } // End of the function makeDir(any):void.
-
-/**
- * This function uses the user's information to assign a "username" to a member.id.
- * This is used to display a name instead of a member.id number.  To use the
- * member.usename tool to display a user's Discord "nickname", the bot has to have
- * the 'identity' scope enabled, which requires a redirect uri in the Oauth2
- * authentication.  If this function is used, the member.id's have to be manually
- * coded into the switch statement.
- *    *** This function is only needed if the "identify" scope is not used. ***
- *
- * @param memeber  The current user whose name is sought.
- * @returns String - The current user's name.
- */
-function userNameFinder (member) {
-  let memberName = "";
-
-  // The commented out cases of this switch statement are to be uncommented once
-  // the member.username of the talking member is paired with their known member.id.
-  switch (member.id) {
-    case member_id_aa:
-      memberName = member_username_aa;
-      break;
-
-    case member_id_ab:
-      memberName = member_username_ab;
-      break;
-
-    case member_id_ac:
-      memberName = member_username_ac;
-      break;
-
-    case member_id_ad:
-      memberName = member_username_ad;
-      break;
-
-    case member_id_ae:
-      memberName = member_username_ae;
-      break;
-
-    //case member_id_af:
-    //  memberName = member_username_af;
-    //  break;
-
-    //case member_id_ag:
-    //  memberName = member_username_ag;
-    //  break;
-
-    //case member_id_ah:
-    //  memberName = member_username_ah;
-    //  break;
-
-    //case member_id_ai:
-    //  memberName = member_username_ai;
-    //  break;
-
-    //case member_id_aj:
-    //  memberName = member_username_aj;
-    //  break;
-
-    //case member_id_ak:
-    //  memberName = member_username_ak;
-    //  break;
-
-    //case member_id_al:
-    //  memberName = member_username_al;
-    //  break;
-
-    //case member_id_am:
-    //  memberName = member_username_am;
-    //  break;
-
-    //case member_id_an:
-    //  memberName = member_username_an;
-    //  break;
-
-    //case member_id_ao:
-    //  memberName = member_username_ao;
-    //  break;
-
-    default:
-      memberName = member.id;
-      break;
-  }
-
-  return memberName;
-} // End of the function userNameFinder(any):String.
 
 /**
  * This function handles the member's voice data by streaming the voice directly
@@ -400,7 +286,7 @@ function streamToWatson(usedConnection, member) {
           // Send the text file data to the Discord text channel, if the data exists.
           fs.readFile(capturedDataTextFilePath, function(err, data) {
             if (err) {
-              console.log("An error occurred at line 403...  " + err);
+              console.log("An error occurred at line 289...  " + err);
               return err;
             }
 
@@ -409,16 +295,15 @@ function streamToWatson(usedConnection, member) {
                 return thisIndex;
 
               else {
-                let userName = userNameFinder(member);
-                console.log("           " + userName + " said: " + data);
-                textChannel.send(userName + " said: " + data);
+                console.log("           " + member.username + " said: " + data);
+                textChannel.send(member.username + " said: " + data);
                 return thisIndex;
               }
             }
           });
         })
         .on('error', (err) => {
-          console.log("An error occurred within lines 393 and 421...  " + err);
+          console.log("An error occurred within lines 279 and 306...  " + err);
           return thisIndex;
         });
       });
@@ -447,7 +332,6 @@ function streamToWatson(usedConnection, member) {
             streamQueue.splice(indexToRemove, 1);
           }
         }
-
       }
     }
   });
@@ -461,6 +345,8 @@ function streamToWatson(usedConnection, member) {
 // -- The version after adding useful comments is 404 lines...
 // -- The version after adding a farewell message and modifying the commandLeave()
 //      function is 408 lines...
+// -- The version after adding a queue system is 454 lines...
+// -- The version after deleting recorded userid's and usernames is 338 lines...
 
 
 /**
