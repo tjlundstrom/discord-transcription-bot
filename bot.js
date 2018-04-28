@@ -39,14 +39,9 @@ var voiceChannel = null;
 var textChannel = null;
 var listenConnection = null;
 var listening = false;
-var newReceiver = true; // Helps determine whether to create or recreate receiver.
 var recordingsPath = "";
+var newReceiver = true; // Helps determine whether to create or recreate receiver.
 var streamQueue = []; // Holds the queued instances of a member talking.
-var indexCounter = 0; // Helps keep track of the elements in the array.
-var currentIndex = 0;
-//var listenStreams = new Map();    // may be useful for multiple users??  
-                                    // listenStreams.get(member.id)...  
-                                    // listenStreams.set(member.id, <something>)...
 
 
 client.login(discord_token);
@@ -82,9 +77,13 @@ function handleMessage(message) {
   // use member.id's here, since usernames in Discord can be changed.  If it is
   // wanted to have anyone command the bot, delete this if() statement.
   if (message.member.id != member_id_aa 
-      //&& message.member.id != member_id_ab 
-      //&& message.member.id != member_id_ac
-      //&& message.member.id != member_id_ad
+      && message.member.id != member_id_ac
+      && message.member.id != member_id_ad
+      //&& message.member.id != member_id_ab // Member ab's id is not known yet...
+                                             // This commented out line has to be last
+                                             // or the code freezes.  Once the id is
+                                             // known, it can be uncommented and place
+                                             // back in order.
      ) {
     message.reply(" the command has to come from the operator of the bot.  Thank you.");
     return;
@@ -171,7 +170,7 @@ function commandListen(message) {
         streamToWatson(connection, member);
       })
       .on('error', (err) => {
-        console.log("An error has occurred between lines 168 and 174..." + err);
+        console.log("An error has occurred between lines 167 and 171..." + err);
       });
   });
 } // End of the function commandListen(any):void.
@@ -194,19 +193,18 @@ function commandLeave() {
         textChannel.send("Stopped listening!")
         // After the message is sent to the text channel...
         .then((err) => {
+          streamQueue = []; // Resets this array to empty.
+
           voiceChannel.leave();
           voiceChannel = null;
 
           listenConnection.disconnect();
           listenConnection = null;
-
-          // Resets this array to empty.
-          streamQueue = [];
         });
       }
     })
     .on('error', (err) => {
-      console.log("An error has occurred between lines 190 and 209..." + err);
+      console.log("An error has occurred between lines 187 and 205..." + err);
     });
   }
 } // End of the function commandLeave():void.
@@ -224,6 +222,8 @@ function makeDir(dir) {
   } catch (err) {}
 } // End of the function makeDir(any):void.
 
+
+
 /**
  * This function handles the member's voice data by streaming the voice directly
  * into the Watson Speech-To-Text AI to produce a text file with the interpretation
@@ -237,7 +237,6 @@ function makeDir(dir) {
  */
 function streamToWatson(usedConnection, member) {
   let receiver = usedConnection.createReceiver();
-  let foundElement = false; // Makes sure the array has an element.
   
   // This code only runs when the member is speaking.
   usedConnection.on('speaking', (member, speaking) => {
@@ -254,88 +253,94 @@ function streamToWatson(usedConnection, member) {
         url: 'https://stream.watsonplatform.net/speech-to-text/api'
       });
 
-      // The path and name of the text file created.
-      let capturedDataTextFilePath = 
-        path.join(recordingsPath, `${member.id}-${Date.now()}-Discord.txt`);
-      
-      // Text file.
-      let capturedDataTextFile = fs.createWriteStream(capturedDataTextFilePath);
-
-      let functionAtIndex = null; // Holds the element of the array at a specified index.
-
       // Queues up the individual initiations of conversation.
-      streamQueue.push ((thisIndex) => {
-        // Voice channel stream.
-        let inputStream = receiver.createPCMStream(member);
-        // Watson voice recognition interpretter stream.
-        let sTTRecStream = speechToText.createRecognizeStream({content_type: content_type});
+      streamQueue.push(() => {
+        // Returns a Promise that resolves once the internal code is finished.
+        return new Promise((resolve, reject) => {
+          // The path and name of the text file created.
+          let capturedDataTextFilePath = 
+            path.join(recordingsPath, `${member.id}-${Date.now()}-Discord.txt`);
 
-        // Empty voice channel stream data into the Watson interpretter and then into
-        // the text file.
-        inputStream.pipe(sTTRecStream).pipe(capturedDataTextFile);
+          // Text file.
+          let capturedDataTextFile = fs.createWriteStream(capturedDataTextFilePath);
+          // Watson voice recognition interpretter stream.
+          let sTTRecStream = speechToText.createRecognizeStream({content_type: content_type});
+          // Voice channel stream.
+          let inputStream = receiver.createPCMStream(member);
         
-        // Once the Watson interpreter is empty, this closes the streams and handles
-        // the text file.
-        sTTRecStream.on('end', () => {
-          newReceiver = false;
+          // Empty voice channel stream data into the Watson interpretter and then into
+          // the text file.
+          inputStream.pipe(sTTRecStream).pipe(capturedDataTextFile);
+        
+          // Once the Watson interpreter is empty, this closes the streams and handles
+          // the text file.
+          sTTRecStream.on('end', () => {
+            capturedDataTextFile.close();
+            sTTRecStream.end();
 
-          sTTRecStream.end();
-          capturedDataTextFile.close();
-          receiver.destroy();
-          
-          // Send the text file data to the Discord text channel, if the data exists.
-          fs.readFile(capturedDataTextFilePath, function(err, data) {
-            if (err) {
-              console.log("An error occurred at line 289...  " + err);
-              return err;
-            }
-
-            else {
-              if (!data || data == "")
-                return thisIndex;
-
-              else {
-                console.log("           " + member.username + " said: " + data);
-                textChannel.send(member.username + " said: " + data);
-                return thisIndex;
-              }
-            }
+            // When this Promise resolves, the function textToChatChannel() is called.
+            resolve(textToChatChannel(member, capturedDataTextFilePath));
+          })
+          .on('error', (err) => {
+            console.log("An error occurred within lines 257 and 289...  " + err);
+            reject(Error(err));
           });
-        })
-        .on('error', (err) => {
-          console.log("An error occurred within lines 279 and 306...  " + err);
-          return thisIndex;
         });
       });
-      
-      // If the queue array is not empty.
+
+      // The queue has something in it.
       if (streamQueue.length > 0) {
-        // The index of the array cannot be below 0.
-        if (indexCounter >= 0) {
-          currentIndex = indexCounter;
-          indexCounter++;
-          
-          // Grabs the function returned from the array at the specified index.
-          functionAtIndex = streamQueue.find((element, currentIndex) => {
-            if (element)
-              foundElement = true; // The element exists.
-              
-            return element;
-          });
-          
-          if (foundElement) {
-            // Grabs the index that this element of the queue is located.
-            let indexToRemove = functionAtIndex(currentIndex);
-            
-            indexCounter = indexCounter - 1;
-            foundElement = false;
-            streamQueue.splice(indexToRemove, 1);
-          }
-        }
+        // This function gets the function removed from the queue.
+        let queuedFunction = streamQueue.shift();
+
+        // Calls the function from the queue.
+        queuedFunction()
+        .catch((err) => {
+          console.log("An error occurred within the function call at line 297...  " + err);
+        });
       }
     }
   });
 } // End of the function streamToWatson(any, any):void.
+
+/**
+ * This function handles typing the text data from the voice stream to the
+ * text channel.
+ * 
+ * @param member The memeber that is talking at the moment.
+ * @param textFilePath The path of the text file that holds the transcribed
+ *                     data from the voice stream to be sent to the text
+ *                     channel.
+ * @return Promise A promise to complete the code instead of skipping it.
+ */
+function textToChatChannel(member, textFilePath) {
+  // Returns a Promise that will resolve once the internal code is finished.
+  return new Promise((resolve, reject) => {
+    // Send the text file data to the Discord text channel, if the data exists.
+    fs.readFile(textFilePath, function(err, data) {
+      if (err) {
+        console.log("An error occurred at line 322...  " + err);
+        reject(err);
+      }
+
+      else {
+        // There is voice data in the text file.
+        if (data && data != "") {
+          console.log("           " + member.username + " said: " + data);
+          textChannel.send(member.username + " said: " + data);
+          resolve();
+        }
+
+        // The file is empty or does not exist.
+        else
+          reject(console.log("There is an error when running the " + 
+            "textToChatChannel() function between lines 318 and 338."));
+      }
+    });
+  });
+} // End of the function textToChatChannel(any, any):void.
+
+
 
 // -- The original had 297 lines...
 // -- The version before cleaning the comments/commented out code is 1509 lines...
@@ -347,6 +352,7 @@ function streamToWatson(usedConnection, member) {
 //      function is 408 lines...
 // -- The version after adding a queue system is 454 lines...
 // -- The version after deleting recorded userid's and usernames is 338 lines...
+// -- The version after adding a queue/Promise system is 341 lines...
 
 
 /**
