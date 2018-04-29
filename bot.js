@@ -42,6 +42,8 @@ var listening = false;
 var recordingsPath = "";
 var newReceiver = true; // Helps determine whether to create or recreate receiver.
 var streamQueue = []; // Holds the queued instances of a member talking.
+var queueIndexCounter = 0; // Helps with the queue system.  Used for a while() loop.
+var firstFinished = true; // Controls the order flow.
 
 
 client.login(discord_token);
@@ -170,7 +172,7 @@ function commandListen(message) {
         streamToWatson(connection, member);
       })
       .on('error', (err) => {
-        console.log("An error has occurred between lines 167 and 171..." + err);
+        console.log("An error has occurred between lines 169 and 173..." + err);
       });
   });
 } // End of the function commandListen(any):void.
@@ -204,7 +206,7 @@ function commandLeave() {
       }
     })
     .on('error', (err) => {
-      console.log("An error has occurred between lines 187 and 205..." + err);
+      console.log("An error has occurred between lines 191 and 207..." + err);
     });
   }
 } // End of the function commandLeave():void.
@@ -219,10 +221,8 @@ function commandLeave() {
 function makeDir(dir) {
   try {
     fs.mkdirSync(dir);
-  } catch (err) {}
+  } catch (err) {} // If directory is already there, an error will not display.
 } // End of the function makeDir(any):void.
-
-
 
 /**
  * This function handles the member's voice data by streaming the voice directly
@@ -253,6 +253,9 @@ function streamToWatson(usedConnection, member) {
         url: 'https://stream.watsonplatform.net/speech-to-text/api'
       });
 
+      // Everytime a member starts talking, this variable increases by one.
+      queueIndexCounter++;
+
       // Queues up the individual initiations of conversation.
       streamQueue.push(() => {
         // Returns a Promise that resolves once the internal code is finished.
@@ -282,22 +285,25 @@ function streamToWatson(usedConnection, member) {
             resolve(textToChatChannel(member, capturedDataTextFilePath));
           })
           .on('error', (err) => {
-            console.log("An error occurred within lines 257 and 289...  " + err);
+            console.log("An error occurred within lines 280 and 286...  " + err);
             reject(Error(err));
           });
         });
       });
 
-      // The queue has something in it.
-      if (streamQueue.length > 0) {
-        // This function gets the function removed from the queue.
-        let queuedFunction = streamQueue.shift();
-
-        // Calls the function from the queue.
-        queuedFunction()
-        .catch((err) => {
-          console.log("An error occurred within the function call at line 297...  " + err);
-        });
+      // This while() loops keeps the order of the queued functions' execution.
+      while (queueIndexCounter > 0) {
+        // The first function has not finished executing.
+        if (firstFinished) {
+          firstFinished = false;
+          runOrderPromise()
+          .then(() => {
+            firstFinished = true;
+          })
+          .catch((err) => {
+            console.log("An error occurred within the lines 299 and 302...  " + err);
+          });
+        }
       }
     }
   });
@@ -319,7 +325,7 @@ function textToChatChannel(member, textFilePath) {
     // Send the text file data to the Discord text channel, if the data exists.
     fs.readFile(textFilePath, function(err, data) {
       if (err) {
-        console.log("An error occurred at line 322...  " + err);
+        console.log("An error occurred at line 326...  " + err);
         reject(err);
       }
 
@@ -334,11 +340,39 @@ function textToChatChannel(member, textFilePath) {
         // The file is empty or does not exist.
         else
           reject(console.log("There is an error when running the " + 
-            "textToChatChannel() function between lines 318 and 338."));
+            "textToChatChannel() function between lines 324 and 346."));
       }
     });
   });
 } // End of the function textToChatChannel(any, any):void.
+
+/**
+ * This function creates a Promise to run the function first in the queue.
+ * 
+ * @return void
+ */
+function runOrderPromise() {
+  return new Promise((resolve, reject) => {
+    // The queue has something in it.
+    if (streamQueue.length > 0) {
+      // This function gets the function removed from the queue.
+      let queuedFunction = streamQueue.shift();
+
+      // Calls the function from the queue.
+      queuedFunction()
+      .catch((err) => {
+        console.log("An error occurred within the function call at " +
+                    "line 362...  " + Error(err));
+      });
+
+      // Once this code finishes, the counter is decreased by one.
+      resolve(queueIndexCounter--);
+    }
+
+    else
+      reject (Error(err)); // An error has occurred.
+  });
+} // End of the function runOrderPromise():void.
 
 
 
@@ -353,6 +387,7 @@ function textToChatChannel(member, textFilePath) {
 // -- The version after adding a queue system is 454 lines...
 // -- The version after deleting recorded userid's and usernames is 338 lines...
 // -- The version after adding a queue/Promise system is 341 lines...
+// -- The version after adding a loop to the queue/Promise system is 375 lines...
 
 
 /**
