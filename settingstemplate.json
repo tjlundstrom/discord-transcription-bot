@@ -1,0 +1,15 @@
+{
+    "discord_token": "ENTER DISCORD TOKEN HERE",
+    "bot_controller": "ENTER CLIENT ID HERE",
+    "content_type": "audio/l16; rate=88200",
+    "prefix": "!",
+
+    "watson_username": "IBM WATSON USERNAME",
+    "watson_password": "IBM WATSON PASSWORD",
+
+    "member_id_aa" : "A USER ID NUMBER",
+    "member_id_ab" : "A USER ID NUMBER",
+    "member_id_ac" : "A USER ID NUMBER",
+    "member_id_ad" : "A USER ID NUMBER",
+    "member_id_ae" : "A USER ID NUMBER"
+  }
