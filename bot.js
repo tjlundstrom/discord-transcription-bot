@@ -32,6 +32,7 @@ const member_id_aa = config.member_id_aa;
 const member_id_ab = config.member_id_ab;
 const member_id_ac = config.member_id_ac;
 const member_id_ad = config.member_id_ad;
+const member_id_ae = config.member_id_ae;
 
 const client = new Discord.Client();
 
@@ -44,6 +45,8 @@ var newReceiver = true; // Helps determine whether to create or recreate receive
 var streamQueue = []; // Holds the queued instances of a member talking.
 var queueIndexCounter = 0; // Helps with the queue system.  Used for a while() loop.
 var firstFinished = true; // Controls the order flow.
+var filter = true; // Profanity filter will be on by default.  This can be changed from the
+                   // operator commands.
 
 
 client.login(discord_token);
@@ -53,13 +56,27 @@ client.on("ready", handleReady.bind(this));
 client.on("message", handleMessage.bind(this));
 
 /**
- * This function ndicates in the command program that the Bot is ready to
+ * This function indicates in the command program that the Bot is ready to
  * operate.
  * 
  * @return void
  */
 function handleReady() {
-  console.log("\n                       *** This Bot is ready to play! ***\n");
+  console.log("\n           *** This Bot is ready to play! ***\n");
+  console.log("Hello authorized operator!  The commands that you can" +
+              "\n   use that the bot will respond to are:\n" +
+              "\n      --  !help        ->  lists the commands the bot" +
+              "\n                           responds to...\n" + 
+              "\n      --  !leave       ->  commands the bot to leave" +
+              "\n                           the voice channel.\n" +
+              "\n      --  !listen      ->  commands the bot to listen" +
+              "\n                           in on the voice channel the" +
+              "\n                           controller is in.\n\n" + 
+              "\n              ***  HIDDEN COMMANDS  ***\n" + 
+              "\n      --  !filter=on   ->  Turn on profanity filter." +
+              "\n                           This is on by default.\n" + 
+              "\n      --  !filter=off  ->  Turn off profanity filter.\n" + 
+              "\n");
 } // End of function handleReady():void
 
 /**
@@ -75,12 +92,18 @@ function handleMessage(message) {
   if (!message.content.startsWith(prefix))
     return;
 
+  // This is only used to find a user's id number if needed for operator
+  // authentication.
+  //console.log("\nId number of user attempting to operate this Bot is " +
+  //             message.member.id + ".\n");
+
   // Only an authorized user, or users if added, can command the bot.  Must
   // use member.id's here, since usernames in Discord can be changed.  If it is
   // wanted to have anyone command the bot, delete this if() statement.
   if (message.member.id != member_id_aa 
       && message.member.id != member_id_ac
-      && message.member.id != member_id_ad
+      && message.member.id != member_id_ad 
+      && message.member.id != member_id_ae
       //&& message.member.id != member_id_ab // Member ab's id is not known yet...
                                              // This commented out line has to be last
                                              // or the code freezes.  Once the id is
@@ -90,22 +113,41 @@ function handleMessage(message) {
     message.reply(" the command has to come from the operator of the bot.  Thank you.");
     return;
   }
-
+  
   var command = message.content.toLowerCase().slice(1);
 
   switch (command) {
     case 'help':
       message.reply(" hello!  The commands that you can\n" +
                     "     use that the bot will respond to are:\n\n" +
-                    "         --  !help   ->  lists the commands the bot\n" +
-                    "                                 responds to...\n\n" + 
-                    "         --  !leave  ->  commands the bot to leave\n" +
-                    "                                 the voice channel.\n\n" +
-                    "         --  !listen ->  commands the bot to listen\n" +
-                    "                                 in on the voice channel the\n" +
-                    "                                 controller is in.");
+                    "         --  !help                  ->  lists the commands the bot\n" +
+                    "                                                  responds to...\n\n" + 
+                    "         --  !help-console  ->  lists the commands the bot\n" + 
+                    "                                                  responds to in the console.\n\n" + 
+                    "         --  !leave                ->  commands the bot to leave\n" +
+                    "                                                  the voice channel.\n\n" +
+                    "         --  !listen                ->  commands the bot to listen\n" +
+                    "                                                  in on the voice channel the\n" +
+                    "                                                  operator is in.");
       break;
 
+    case 'help-console':
+      console.log("Hello authorized operator!  The commands that you can" +
+                  "\n   use that the bot will respond to are:\n" +
+                  "\n      --  !help        ->  lists the commands the bot" +
+                  "\n                           responds to...\n" + 
+                  "\n      --  !leave       ->  commands the bot to leave" +
+                  "\n                           the voice channel.\n" +
+                  "\n      --  !listen      ->  commands the bot to listen" +
+                  "\n                           in on the voice channel the" +
+                  "\n                           controller is in.\n\n" + 
+                  "\n              ***  HIDDEN COMMANDS  ***\n" + 
+                  "\n      --  !filter=on   ->  Turn on profanity filter." +
+                  "\n                           This is on by default.\n" + 
+                  "\n      --  !filter=off  ->  Turn off profanity filter.\n" + 
+                  "\n");
+      break;
+      
     case 'leave':
       if (!listening) {
         message.reply(" the bot has to be present to be able to leave.");
@@ -113,6 +155,26 @@ function handleMessage(message) {
       }
 
       commandLeave();
+      break;
+
+    case 'filter=off':
+      if (!filter) {
+        console.log("The profanity filter is already off");
+        break;
+      }
+
+      console.log("The profanity filter is now off");
+      filter = false;
+      break;
+
+    case 'filter=on':
+      if (filter) {
+        console.log("The profanity filter is already on");
+        break;
+      }
+
+      console.log("The profanity filter is now off");
+      filter = true;
       break;
 
     case 'listen':
@@ -172,7 +234,7 @@ function commandListen(message) {
         streamToWatson(connection, member);
       })
       .on('error', (err) => {
-        console.log("An error has occurred between lines 169 and 173..." + err);
+        console.log("An error has occurred between lines 231 and 235..." + err);
       });
   });
 } // End of the function commandListen(any):void.
@@ -206,7 +268,7 @@ function commandLeave() {
       }
     })
     .on('error', (err) => {
-      console.log("An error has occurred between lines 191 and 207..." + err);
+      console.log("An error has occurred between lines 253 and 269..." + err);
     });
   }
 } // End of the function commandLeave():void.
@@ -267,25 +329,27 @@ function streamToWatson(usedConnection, member) {
           // Text file.
           let capturedDataTextFile = fs.createWriteStream(capturedDataTextFilePath);
           // Watson voice recognition interpretter stream.
-          let sTTRecStream = speechToText.createRecognizeStream({content_type: content_type});
+          let sTTRecStream = speechToText.createRecognizeStream({content_type: content_type,
+            profanity_filter: filter});
+            
           // Voice channel stream.
           let inputStream = receiver.createPCMStream(member);
-        
+          
           // Empty voice channel stream data into the Watson interpretter and then into
           // the text file.
           inputStream.pipe(sTTRecStream).pipe(capturedDataTextFile);
-        
+          
           // Once the Watson interpreter is empty, this closes the streams and handles
           // the text file.
           sTTRecStream.on('end', () => {
             capturedDataTextFile.close();
             sTTRecStream.end();
-
+            
             // When this Promise resolves, the function textToChatChannel() is called.
             resolve(textToChatChannel(member, capturedDataTextFilePath));
           })
           .on('error', (err) => {
-            console.log("An error occurred within lines 280 and 286...  " + err);
+            console.log("An error occurred within lines 344 and 350...  " + err);
             reject(Error(err));
           });
         });
@@ -301,7 +365,7 @@ function streamToWatson(usedConnection, member) {
             firstFinished = true;
           })
           .catch((err) => {
-            console.log("An error occurred within the lines 299 and 302...  " + err);
+            console.log("An error occurred within the lines 363 and 369...  " + err);
           });
         }
       }
@@ -325,7 +389,7 @@ function textToChatChannel(member, textFilePath) {
     // Send the text file data to the Discord text channel, if the data exists.
     fs.readFile(textFilePath, function(err, data) {
       if (err) {
-        console.log("An error occurred at line 326...  " + err);
+        console.log("An error occurred at line 390...  " + err);
         reject(err);
       }
 
@@ -339,8 +403,8 @@ function textToChatChannel(member, textFilePath) {
 
         // The file is empty or does not exist.
         else
-          reject(console.log("There is an error when running the " + 
-            "textToChatChannel() function between lines 324 and 346."));
+          reject(console.log("There is no data in the text file containing " + 
+                             "the interpretted text."));
       }
     });
   });
@@ -362,7 +426,7 @@ function runOrderPromise() {
       queuedFunction()
       .catch((err) => {
         console.log("An error occurred within the function call at " +
-                    "line 362...  " + Error(err));
+                    "line 426...  " + Error(err));
       });
 
       // Once this code finishes, the counter is decreased by one.
@@ -388,6 +452,7 @@ function runOrderPromise() {
 // -- The version after deleting recorded userid's and usernames is 338 lines...
 // -- The version after adding a queue/Promise system is 341 lines...
 // -- The version after adding a loop to the queue/Promise system is 375 lines...
+// -- The version after adding a profanity filter on/off command is 439 lines...
 
 
 /**
