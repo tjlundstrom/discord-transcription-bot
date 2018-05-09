@@ -1,5 +1,5 @@
 {
-  "name": "s2t-bot",
+  "name": "discord-transcription-bot",
   "version": "1.0.0",
   "description": "A bot that will transcribe the conversations had in a voice channel on discord",
   "main": "bot.js",
@@ -43,13 +43,13 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/millenniumdrummer/Trying-Something-Out.git"
+    "url": "git+https://github.com/tjlundstrom/discord-transcription-bot.git"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "bugs": {
-    "url": "https://github.com/millenniumdrummer/Trying-Something-Out/issues"
+    "url": "https://github.com/tjlundstrom/discord-transcription-bot/issues"
   },
-  "homepage": "https://github.com/millenniumdrummer/Trying-Something-Out#readme"
+  "homepage": "https://github.com/tjlundstrom/discord-transcription-bot#readme"
 }
