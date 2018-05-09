@@ -5,7 +5,7 @@
  * 
  * Credit:  Dogshep and Berestun initiated the base code.  Melola helped modify the
  * base code.  Bewchakka, Kalishei, Jokker, Dogshep, and Melola helped with initial
- * multi-interaction testing.  Possibly more to add...
+ * multi-interaction testing.  The LMA guild helped with further multi-interaction testing.
  */
 
 // Imported modules.
@@ -24,7 +24,6 @@ const watson_password = config.watson_password; // Password from IBM Watson.
 const prefix = config.prefix; // The special character at the beginning of a word in chat that
                               // indicates the text is a command for this bot.
 
-//----
 // These constants are the member.id's of some of the members of the specified Discord server.
 // Not all members are listed.  These member id's are used to determine if a command is given
 // by an authorized operator of this Bot.
@@ -41,19 +40,18 @@ var textChannel = null;
 var listenConnection = null;
 var listening = false;
 var recordingsPath = "";
-var newReceiver = true; // Helps determine whether to create or recreate receiver.
 var streamQueue = []; // Holds the queued instances of a member talking.
-var queueIndexCounter = 0; // Helps with the queue system.  Used for a while() loop.
-var firstFinished = true; // Controls the order flow.
+var streamFirstFinished = true; // Controls the individual user order flow.
 var filter = true; // Profanity filter will be on by default.  This can be changed from the
                    // operator commands.
 
 
+
 client.login(discord_token);
 
-client.on("ready", handleReady.bind(this));
+client.on("ready", manageIntro.bind(this));
 
-client.on("message", handleMessage.bind(this));
+client.on("message", manageTextMessage.bind(this));
 
 /**
  * This function indicates in the command program that the Bot is ready to
@@ -61,7 +59,7 @@ client.on("message", handleMessage.bind(this));
  * 
  * @return void
  */
-function handleReady() {
+function manageIntro() {
   console.log("\n           *** This Bot is ready to play! ***\n");
   console.log("Hello authorized operator!  The commands that you can" +
               "\n   use that the bot will respond to are:\n" +
@@ -77,7 +75,7 @@ function handleReady() {
               "\n                           This is on by default.\n" + 
               "\n      --  !filter=off  ->  Turn off profanity filter.\n" + 
               "\n");
-} // End of function handleReady():void
+} // End of function manageIntro():void
 
 /**
  * This function handles the text channel message to see if it is a command
@@ -87,7 +85,7 @@ function handleReady() {
  * @param message Holds the members' text channel chat message.
  * @return void
  */
-function handleMessage(message) {
+function manageTextMessage(message) {
   // Any normal message in chat will not bother the bot.
   if (!message.content.startsWith(prefix))
     return;
@@ -154,7 +152,7 @@ function handleMessage(message) {
         break;
       }
 
-      commandLeave();
+      leaveVoiceChannel();
       break;
 
     case 'filter=off':
@@ -179,25 +177,25 @@ function handleMessage(message) {
 
     case 'listen':
       textChannel = message.channel;
-      commandListen(message);
+      listenToVoiceChannel(message);
       break;
 
     default:
       message.reply(" your command is not recognized!  Type '!help' for a list of commands.");
   }
-} // End of the function handleMessage(any):void.
+} // End of the function manageTextMessage(any):void.
 
 /**
  * This function controls the Bot's enterance to the voice channel that the operator is
  * in.  It also sets the directory to use for the text files that will be created.  This
- * function eventually passes off further Bot operated to the streamToWatson(any, any):void
+ * function eventually passes off further Bot operated to the streamToWatson(any):void
  * function.
  * 
  * @param message Holds the members' text channel chat message.  At this point, the message
  *                is a command from an authorized operator.
  * @return void
  */
-function commandListen(message) {
+function listenToVoiceChannel(message) {
   let member = message.member; // This member variable becomes the sender of the message.
   
   if (!member)
@@ -222,22 +220,23 @@ function commandListen(message) {
   textChannel.send('Listening in on the **' + member.voiceChannel.name + '**!');
 
   recordingsPath = path.join('.', 'recordings');
-  makeDir(recordingsPath);
-
+  createFolder(recordingsPath);
+  
   // The bot joins the voice channel the operator is in.
   voiceChannel.join().then((connection) => {
     listenConnection = connection;
+
     // Bot intro...  Warcraft II peasant "Hello".
     listenConnection.playFile('./extra_waves/000-Peasant-Hello.mp3')
       // After the intro has played...
       .on('end', (err) => {
-        streamToWatson(connection, member);
+        streamToWatson(connection, member.id);
       })
       .on('error', (err) => {
-        console.log("An error has occurred between lines 231 and 235..." + err);
+        console.log("An error has occurred between lines 230 and 237...  " + err);
       });
   });
-} // End of the function commandListen(any):void.
+} // End of the function listenToVoiceChannel(any):void.
 
 /**
  * This function takes care of disconnecting from the Connection and the VoiceChannel,
@@ -245,7 +244,7 @@ function commandListen(message) {
  * 
  * @return void
  */
-function commandLeave() {
+function leaveVoiceChannel() {
   listening = false;
 
   if(listenConnection) {
@@ -256,7 +255,7 @@ function commandLeave() {
       if (voiceChannel) {
         textChannel.send("Stopped listening!")
         // After the message is sent to the text channel...
-        .then((err) => {
+        .then(() => {
           streamQueue = []; // Resets this array to empty.
 
           voiceChannel.leave();
@@ -268,23 +267,23 @@ function commandLeave() {
       }
     })
     .on('error', (err) => {
-      console.log("An error has occurred between lines 253 and 269..." + err);
+      console.log("An error has occurred between lines 252 and 271...  " + err);
     });
   }
-} // End of the function commandLeave():void.
+} // End of the function leaveVoiceChannel():void.
 
 /**
- * This function creates a directory, unless it is already created, that the
+ * This function creates a folder/directory, unless it already exists, that the
  * text files created will be saved in.
  * 
- * @param dir The path/folder the text files created will be saved in.
+ * @param folderToCreate The path/folder the text files created will be saved in.
  * @return void
  */
-function makeDir(dir) {
+function createFolder(folderToCreate) {
   try {
-    fs.mkdirSync(dir);
+    fs.mkdirSync(folderToCreate);
   } catch (err) {} // If directory is already there, an error will not display.
-} // End of the function makeDir(any):void.
+} // End of the function createFolder(any):void.
 
 /**
  * This function handles the member's voice data by streaming the voice directly
@@ -294,29 +293,20 @@ function makeDir(dir) {
  * 
  * @param usedConnection The Connection passed by the calling function that is used
  *                       to handle the Bot's actions in the voice channel.
- * @param member The member that is currently talking.
  * @return void
  */
-function streamToWatson(usedConnection, member) {
+function streamToWatson(usedConnection, userTest) {
   let receiver = usedConnection.createReceiver();
   
   // This code only runs when the member is speaking.
   usedConnection.on('speaking', (member, speaking) => {
     if (speaking) {
-      // If the Receiver used has already been created but then destroyed, recreate()
-      // runs.
-      if (!newReceiver)
-        receiver.recreate();
-
       // Creates an instance of the Watson AI.
       var speechToText = new WatsonSTT.SpeechToTextV1 ({
         username: watson_username,
         password: watson_password,
         url: 'https://stream.watsonplatform.net/speech-to-text/api'
       });
-
-      // Everytime a member starts talking, this variable increases by one.
-      queueIndexCounter++;
 
       // Queues up the individual initiations of conversation.
       streamQueue.push(() => {
@@ -331,7 +321,7 @@ function streamToWatson(usedConnection, member) {
           // Watson voice recognition interpretter stream.
           let sTTRecStream = speechToText.createRecognizeStream({content_type: content_type,
             profanity_filter: filter});
-            
+          
           // Voice channel stream.
           let inputStream = receiver.createPCMStream(member);
           
@@ -349,29 +339,28 @@ function streamToWatson(usedConnection, member) {
             resolve(textToChatChannel(member, capturedDataTextFilePath));
           })
           .on('error', (err) => {
-            console.log("An error occurred within lines 344 and 350...  " + err);
-            reject(Error(err));
+            reject(console.log("An error occurred within lines 334 and 343...  " + err));
           });
         });
       });
-
+      
       // This while() loops keeps the order of the queued functions' execution.
-      while (queueIndexCounter > 0) {
-        // The first function has not finished executing.
-        if (firstFinished) {
-          firstFinished = false;
-          runOrderPromise()
+      while (streamQueue.length > 0) {
+        // This if() statement runs if the first function in the queue has finished.
+        if (streamFirstFinished) {
+          streamFirstFinished = false; // Current function is now the first and running.
+          streamRunOrderPromise()
           .then(() => {
-            firstFinished = true;
+            streamFirstFinished = true; // The current function has finished running.
           })
           .catch((err) => {
-            console.log("An error occurred within the lines 363 and 369...  " + err);
+            console.log("An error occurred within the lines 352 and 358...  " + err);
           });
         }
       }
     }
   });
-} // End of the function streamToWatson(any, any):void.
+} // End of the function streamToWatson(any):void.
 
 /**
  * This function handles typing the text data from the voice stream to the
@@ -388,23 +377,22 @@ function textToChatChannel(member, textFilePath) {
   return new Promise((resolve, reject) => {
     // Send the text file data to the Discord text channel, if the data exists.
     fs.readFile(textFilePath, function(err, data) {
-      if (err) {
-        console.log("An error occurred at line 390...  " + err);
-        reject(err);
-      }
+      if (err)
+        reject(console.log("An error occurred at line 379...  " + err));
 
       else {
         // There is voice data in the text file.
         if (data && data != "") {
-          console.log("           " + member.username + " said: " + data);
+          console.log(" -- " + member.username + " said: " + data);
           textChannel.send(member.username + " said: " + data);
           resolve();
         }
 
         // The file is empty or does not exist.
-        else
-          reject(console.log("There is no data in the text file containing " + 
-                             "the interpretted text."));
+        else {
+          console.log("There is no data in the text file containing " + 
+                      "the interpretted text.");
+        }
       }
     });
   });
@@ -412,10 +400,13 @@ function textToChatChannel(member, textFilePath) {
 
 /**
  * This function creates a Promise to run the function first in the queue.
+ * This queue holds the streams of one individual.
  * 
- * @return void
+ * @return Promise A promise to take care of an individual user's
+ *         single instance of a speaking after their earlier instance has 
+ *         finished and has finished processing.
  */
-function runOrderPromise() {
+function streamRunOrderPromise() {
   return new Promise((resolve, reject) => {
     // The queue has something in it.
     if (streamQueue.length > 0) {
@@ -425,19 +416,18 @@ function runOrderPromise() {
       // Calls the function from the queue.
       queuedFunction()
       .catch((err) => {
-        console.log("An error occurred within the function call at " +
-                    "line 426...  " + Error(err));
+        reject(console.log("An error occurred within the lines 417 and 420...  " + err));
       });
-
-      // Once this code finishes, the counter is decreased by one.
-      resolve(queueIndexCounter--);
+      
+      resolve();
     }
 
     else
-      reject (Error(err)); // An error has occurred.
+      reject (console.log("An error occurred at line 412...  The array " + 
+                          "streamQueue is empty..."));
   });
-} // End of the function runOrderPromise():void.
-
+} // End of the function streamRunOrderPromise():void.
+ 
 
 
 // -- The original had 297 lines...
@@ -446,13 +436,15 @@ function runOrderPromise() {
 // -- The version after cleaning the code is 269 lines...  Still using wit.ai...
 // -- The version after using Watson and cleaning the unneeded code is 276 lines...
 // -- The version after adding useful comments is 404 lines...
-// -- The version after adding a farewell message and modifying the commandLeave()
+// -- The version after adding a farewell message and modifying the leaveVoiceChannel()
 //      function is 408 lines...
 // -- The version after adding a queue system is 454 lines...
 // -- The version after deleting recorded userid's and usernames is 338 lines...
 // -- The version after adding a queue/Promise system is 341 lines...
 // -- The version after adding a loop to the queue/Promise system is 375 lines...
 // -- The version after adding a profanity filter on/off command is 439 lines...
+// -- The version after adding a multi-user queue/Promise system is 497 lines...
+// -- The version after removing the multi-user queue/Promise system is 429 lines...
 
 
 /**
